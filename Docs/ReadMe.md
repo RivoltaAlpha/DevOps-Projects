@@ -1242,3 +1242,202 @@ df, du, free, uptime
 ```
 
 ---
+
+# ADDITIONAL KEY CONCEPTS
+
+## Key Symbols
+
+### Variable & Command Symbols
+```bash
+$           # Variable reference ($CPU_THRESHOLD, $1)
+$()         # Command substitution (captures command output)
+${}         # Variable expansion with features (${cpu_usage%.*})
+$(())       # Arithmetic expansion ($((used * 100 / total)))
+```
+
+### Positional Parameters
+```bash
+$1, $2      # First, second argument
+$0          # Script/function name
+$@          # All arguments as separate words
+$#          # Number of arguments
+```
+
+### Bash Operators
+
+**String Test Operators:**
+```
+-n string       # String is NOT empty (length > 0)
+-z string       # String IS empty (length = 0)
+string1 = string2       # Strings are equal
+string1 != string2      # Strings are not equal
+```
+
+**Numeric Comparison Operators:**
+```
+-eq         # Equal
+-ne         # Not equal
+-lt         # Less than
+-le         # Less than or equal to
+-gt         # Greater than
+-ge         # Greater than or equal to
+```
+
+**Redirection & Pipe Operators:**
+```
+|           # Pipe (sends output to next command)
+>           # Output redirection (overwrites file)
+>>          # Append redirection (adds to file)
+&>          # Redirect both stdout and stderr
+2>/dev/null # Suppress error messages
+```
+
+### Conditionals
+```bash
+[ ]         # Test command for conditions
+[[ ]]       # Extended test (preferred)
+```
+
+### String Operations
+```bash
+"..."       # Double quotes (allows variable expansion)
+'...'       # Single quotes (literal string)
+<< EOF      # Here-document (multi-line string)
+```
+
+### Arrays
+```bash
+declare -A          # Associative array declaration
+ARRAY[key]          # Array access
+```
+
+---
+
+## Important Numbers
+
+### Thresholds (trigger alerts)
+```
+80      # CPU usage threshold (%)
+85      # Memory usage threshold (%)
+90      # Disk usage threshold (%)
+1000    # Max established connections before alert
+5000    # Max TIME_WAIT connections before alert
+2.0     # Load average per core threshold
+50      # Swap usage threshold (%)
+```
+
+### Timing
+```
+60      # Check interval in seconds (1 minute)
+300     # Alert cooldown period in seconds (5 minutes)
+```
+
+### Magic Numbers in Commands
+```
+100     # Percentage calculation multiplier
+6, 5    # Lines to display in head/tail commands
+11      # Lines for process listings
+10      # Number of largest files to show in disk alerts
+```
+
+---
+
+## Command Examples
+
+### Check if Command Exists
+```bash
+command -v cmd      # Show path to command
+command -V cmd      # Verbose description
+type cmd            # Similar but not POSIX compliant
+
+# Example
+command -v python3
+```
+
+### top -bn1
+**System monitoring tool that displays running processes and resource usage**
+
+**Options:**
+```
+-b      # Batch mode (outputs plain text for scripts)
+-n1     # Number of iterations (run 1 time then exit)
+```
+
+### grep "Cpu(s)"
+**Searches text for lines matching a pattern**
+
+Purpose: Finds and extracts only the line containing "Cpu(s)"
+
+### awk '{print $2}'
+**Text processing tool that works with columns/fields**
+
+`'{print $2}'` - Prints the 2nd field (column) from the input
+
+**How awk splits the line:**
+```
+$1 = %Cpu(s):
+$2 = 12.5       ← This is extracted
+$3 = us,
+```
+
+### cut -d'%' -f1
+**Extracts portions of text**
+
+**Options:**
+```
+-d'%'   # Delimiter (split text using % as separator)
+-f1     # Field 1 (take the first part before the %)
+```
+
+Purpose: Removes the % symbol if present
+
+### ps aux
+**Process status command that displays running processes**
+
+**Options:**
+```
+a       # Show processes from all users
+u       # User-oriented format (detailed info)
+x       # Include processes without a controlling terminal
+```
+
+### --sort=-%cpu
+**Purpose:** Sorts processes by CPU usage
+
+**Details:**
+```
+--sort=     # Sort flag
+-%cpu       # Sort by CPU column in descending order (highest first)
+-           # Minus sign means reverse/descending order
+```
+
+Result: Processes with highest CPU usage appear at the top
+
+### head -6
+**Displays the first N lines of input**
+
+```
+-6      # Show first 6 lines
+        # Lines 2-6 = Top 5 processes (after header)
+```
+
+### tail -5
+**Displays the last N lines of input**
+
+```
+-5      # Show last 5 lines
+```
+
+Purpose: Removes the header row (keeps only the process rows)
+
+### awk '{print $11, $3"%"}'
+**Text processing tool**
+
+`'{print $11, $3"%"}'` - Prints specific columns:
+```
+$11     # Column 11 = COMMAND (process name/path)
+$3      # Column 3 = %CPU (CPU percentage)
+"%"     # Adds a literal % symbol after the number
+```
+
+---
