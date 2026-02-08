@@ -1,0 +1,149 @@
+@Library('shared-pipeline-library') _
+
+buildMicroservice(
+    serviceName: 'user-service',
+    servicePort: 3001,
+    runtime: 'nodejs'
+)
+
+pipeline {
+    agent any
+    
+    environment {
+        REGISTRY = 'localhost:5000'
+        SERVICE_NAME = 'order-service'
+        SERVICE_PORT = '3002'
+        IMAGE_NAME = "${REGISTRY}/${SERVICE_NAME}"
+        PYTHON_VERSION = '3.11'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    echo "🔄 Checking out ${SERVICE_NAME}"
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+                }
+            }
+        }
+        
+        stage('Setup Python Environment') {
+            steps {
+                script {
+                    sh '''
+                        python3 -m venv venv
+                        . venv/bin/activate
+                        pip install --upgrade pip
+                        pip install -r requirements.txt
+                        pip install -r requirements-dev.txt
+                    '''
+                }
+            }
+        }
+        
+        stage('Code Quality & Tests') {
+            parallel {
+                stage('Lint with Flake8') {
+                    steps {
+                        sh '''
+                            . venv/bin/activate
+                            flake8 app/ --max-line-length=120 --statistics
+                        '''
+                    }
+                }
+                stage('Type Check with MyPy') {
+                    steps {
+                        sh '''
+                            . venv/bin/activate
+                            mypy app/
+                        '''
+                    }
+                }
+                stage('Run Tests') {
+                    steps {
+                        sh '''
+                            . venv/bin/activate
+                            pytest tests/ \
+                                --cov=app \
+                                --cov-report=html \
+                                --cov-report=xml \
+                                --junitxml=junit.xml
+                        '''
+                    }
+                    post {
+                        always {
+                            junit testResults: 'junit.xml', allowEmptyResults: true
+                            publishHTML(target: [
+                                reportDir: 'htmlcov',
+                                reportFiles: 'index.html',
+                                reportName: 'Coverage Report'
+                            ])
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Build Docker Image') {
+            when {
+                anyOf {
+                    branch 'develop'
+                    branch 'test'
+                    branch 'main'
+                }
+            }
+            steps {
+                script {
+                    def imageTag = determineImageTag()
+                    env.IMAGE_TAG = imageTag
+                    
+                    sh """
+                        docker build \
+                            --build-arg PYTHON_VERSION=${PYTHON_VERSION} \
+                            --build-arg SERVICE_PORT=${SERVICE_PORT} \
+                            -t ${IMAGE_NAME}:${imageTag} \
+                            .
+                    """
+                }
+            }
+        }
+        
+        stage('Push & Deploy') {
+            when {
+                anyOf {
+                    branch 'test'
+                    branch 'main'
+                }
+            }
+            steps {
+                script {
+                    sh "docker push ${IMAGE_NAME}:${env.IMAGE_TAG}"
+                    
+                    // Trigger deployment
+                    def environment = env.BRANCH_NAME == 'main' ? 'production' : 'test'
+                    build job: "deploy-to-${environment}",
+                          parameters: [
+                              string(name: 'SERVICE_NAME', value: SERVICE_NAME),
+                              string(name: 'IMAGE_TAG', value: env.IMAGE_TAG)
+                          ]
+                }
+            }
+        }
+    }
+}
+
+def determineImageTag() {
+    switch(env.BRANCH_NAME) {
+        case 'develop':
+            return "dev-${env.BUILD_NUMBER}"
+        case 'test':
+            return "test-${env.BUILD_NUMBER}"
+        case 'main':
+            return "prod-${env.BUILD_NUMBER}"
+        default:
+            return "feature-${env.BUILD_NUMBER}"
+    }
+}
