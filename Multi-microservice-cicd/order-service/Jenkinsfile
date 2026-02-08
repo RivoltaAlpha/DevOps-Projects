@@ -1,0 +1,220 @@
+@Library('shared-pipeline-library') _
+buildMicroservice(
+    serviceName: 'order-service', 
+    servicePort: 3002, 
+    runtime: 'nodejs'
+    )
+
+pipeline {
+    agent any
+    
+    environment {
+        REGISTRY = 'localhost:5000'
+        SERVICE_NAME = 'user-service'
+        SERVICE_PORT = '3001'
+        IMAGE_NAME = "${REGISTRY}/${SERVICE_NAME}"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    echo "🔄 Checking out ${SERVICE_NAME}"
+                    env.APP_VERSION = sh(
+                        script: "cat package.json | grep version | head -1 | awk -F: '{ print \$2 }' | sed 's/[\",]//g' | tr -d '[[:space:]]'",
+                        returnStdout: true
+                    ).trim()
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+                }
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                script {
+                    echo "📦 Installing dependencies..."
+                    sh '''
+                        npm install -g pnpm || true
+                        pnpm install --frozen-lockfile
+                    '''
+                }
+            }
+        }
+        
+        stage('Lint & Test') {
+            parallel {
+                stage('Lint') {
+                    steps {
+                        sh 'pnpm run lint || true'
+                    }
+                }
+                stage('Unit Tests') {
+                    steps {
+                        sh 'pnpm run test:ci'
+                    }
+                    post {
+                        always {
+                            junit testResults: 'junit.xml', allowEmptyResults: true
+                            publishHTML(target: [
+                                allowMissing: true,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: true,
+                                reportDir: 'coverage/lcov-report',
+                                reportFiles: 'index.html',
+                                reportName: 'Coverage Report'
+                            ])
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Build Docker Image') {
+            when {
+                anyOf {
+                    branch 'develop'
+                    branch 'test'
+                    branch 'main'
+                }
+            }
+            steps {
+                script {
+                    def imageTag = determineImageTag()
+                    env.IMAGE_TAG = imageTag
+                    
+                    echo "🐳 Building Docker image: ${IMAGE_NAME}:${imageTag}"
+                    sh """
+                        docker build \
+                            --build-arg SERVICE_PORT=${SERVICE_PORT} \
+                            --build-arg VERSION=${env.APP_VERSION} \
+                            --build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+                            --build-arg VCS_REF=${env.GIT_COMMIT_SHORT} \
+                            -t ${IMAGE_NAME}:${imageTag} \
+                            .
+                    """
+                    
+                    // Tag as latest for main branch
+                    if (env.BRANCH_NAME == 'main') {
+                        sh "docker tag ${IMAGE_NAME}:${imageTag} ${IMAGE_NAME}:latest"
+                    }
+                }
+            }
+        }
+        
+        stage('Security Scan') {
+            when {
+                anyOf {
+                    branch 'test'
+                    branch 'main'
+                }
+            }
+            steps {
+                script {
+                    echo "🔒 Running security scan..."
+                    sh """
+                        trivy image \
+                            --severity HIGH,CRITICAL \
+                            --format json \
+                            --output trivy-report.json \
+                            ${IMAGE_NAME}:${env.IMAGE_TAG}
+                    """
+                }
+            }
+        }
+        
+        stage('Push to Registry') {
+            when {
+                anyOf {
+                    branch 'develop'
+                    branch 'test'
+                    branch 'main'
+                }
+            }
+            steps {
+                script {
+                    echo "📤 Pushing to registry..."
+                    sh "docker push ${IMAGE_NAME}:${env.IMAGE_TAG}"
+                    
+                    if (env.BRANCH_NAME == 'main') {
+                        sh "docker push ${IMAGE_NAME}:latest"
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy to Test Environment') {
+            when {
+                branch 'test'
+            }
+            steps {
+                script {
+                    echo "🚀 Deploying to test environment..."
+                    // Trigger deployment pipeline or update docker-compose
+                    build job: 'deploy-to-test',
+                          parameters: [
+                              string(name: 'SERVICE_NAME', value: SERVICE_NAME),
+                              string(name: 'IMAGE_TAG', value: env.IMAGE_TAG)
+                          ],
+                          wait: false
+                }
+            }
+        }
+        
+        stage('Deploy to Production') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    // Require manual approval for production
+                    input message: 'Deploy to production?',
+                          ok: 'Deploy',
+                          submitter: 'admin,devops-team'
+                    
+                    echo "🚀 Deploying to production..."
+                    build job: 'deploy-to-production',
+                          parameters: [
+                              string(name: 'SERVICE_NAME', value: SERVICE_NAME),
+                              string(name: 'IMAGE_TAG', value: env.IMAGE_TAG)
+                          ],
+                          wait: true
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            script {
+                echo "✅ ${SERVICE_NAME} pipeline completed successfully!"
+                // Send notification (Slack, email, etc.)
+            }
+        }
+        failure {
+            script {
+                echo "❌ ${SERVICE_NAME} pipeline failed!"
+                // Send failure notification
+            }
+        }
+    }
+}
+
+// Helper function to determine image tag
+def determineImageTag() {
+    switch(env.BRANCH_NAME) {
+        case 'develop':
+            return "dev-${env.BUILD_NUMBER}"
+        case 'test':
+            return "test-${env.APP_VERSION}-${env.BUILD_NUMBER}"
+        case 'main':
+            return "v${env.APP_VERSION}"
+        default:
+            return "feature-${env.BUILD_NUMBER}"
+    }
+}
