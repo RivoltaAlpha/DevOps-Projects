@@ -1,0 +1,30 @@
+#  Docker Registry Configuration File is used to set up a private Docker registry.
+# This configuration enables storage, logging, HTTP settings, and health checks.
+# Prometheus metrics endpoint is also enabled for monitoring purposes.
+
+version: 0.1
+log:
+  fields:
+    service: registry
+storage:
+  cache:
+    blobdescriptor: inmemory
+  filesystem:
+    rootdirectory: /var/lib/registry
+  delete:
+    enabled: true
+http:
+  addr: :5000
+  headers:
+    X-Content-Type-Options: [nosniff]
+  # Enable Prometheus metrics endpoint
+  debug:
+    addr: :5001
+    prometheus:
+      enabled: true
+      path: /metrics
+health:
+  storagedriver:
+    enabled: true
+    interval: 10s
+    threshold: 3
