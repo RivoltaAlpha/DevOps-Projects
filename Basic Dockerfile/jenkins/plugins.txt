@@ -1,0 +1,7 @@
+workflow-aggregator:latest
+git:latest
+credentials:latest
+timestamper:latest
+pipeline-stage-view:latest
+docker-workflow:latest
+github-branch-source:latest

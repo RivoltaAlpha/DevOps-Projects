@@ -1,0 +1,47 @@
+pipeline {
+    agent any
+
+    stages{
+        stage('Building Docker image') {
+            steps {
+                echo 'Building Docker image...'
+                sh 'docker build -t hello-tiffany .'
+            }
+            steps {
+                echo 'Finished building Docker image...'
+            }
+        }
+
+        stage('Running Docker container') {
+            steps {
+                echo 'Running Docker container...'
+                sh 'docker run hello-tiffany'
+            }
+            steps {
+                echo 'Finished running Docker container...'
+            }
+        }
+
+        stage('Cleaning up Docker images') {
+            steps {
+                echo 'Cleaning up Docker images...'
+                sh 'docker rmi hello-tiffany'
+            }
+            steps {
+                echo 'Finished cleaning up Docker images...'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed. Please check the logs for details.'
+        }
+        always {
+            echo 'Have a great day, Tiff!'
+        }
+    }
+}
