@@ -1,0 +1,20 @@
+# Dockerfile.controller - The machine that runs Ansible
+FROM python:3.11-slim
+
+# Install Ansible and dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    openssh-client \
+    sshpass \
+    git && \
+    pip install --no-cache-dir ansible && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create working directory
+WORKDIR /ansible
+
+# Verify Ansible installation
+RUN ansible --version
+
+CMD ["/bin/bash"]

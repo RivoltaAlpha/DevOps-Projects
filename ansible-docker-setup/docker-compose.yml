@@ -1,0 +1,33 @@
+services:
+  # The server we want to configure
+  ansible-target:
+    build:
+      context: .
+      dockerfile: Dockerfile.target
+    container_name: ansible-target
+    hostname: webserver
+    ports:
+      - "8080:80"  # Web server
+    networks:
+      - ansible-net
+
+  # The Ansible control node
+  ansible-controller:
+    build:
+      context: .
+      dockerfile: Dockerfile.controller
+    container_name: ansible-controller
+    hostname: controller
+    volumes:
+      - ./ansible:/ansible  # Mount your playbooks
+    working_dir: /ansible
+    networks:
+      - ansible-net
+    depends_on:
+      - ansible-target
+    # Keep container running
+    command: tail -f /dev/null
+
+networks:
+  ansible-net:
+    driver: bridge
