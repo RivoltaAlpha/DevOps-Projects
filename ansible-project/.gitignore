@@ -1,0 +1,26 @@
+# Ansible
+*.retry
+.ansible/
+
+# Python
+*.pyc
+__pycache__/
+*.py[cod]
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Files with sensitive data
+files/public_key.pub
+files/*.pem
+files/*.key
+
+# Logs
+*.log

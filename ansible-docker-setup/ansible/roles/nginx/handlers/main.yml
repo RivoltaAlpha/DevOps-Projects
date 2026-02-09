@@ -1,0 +1,14 @@
+---
+- name: restart nginx
+  systemd:
+    name: nginx
+    state: restarted
+  when: ansible_service_mgr == "systemd"
+  ignore_errors: yes
+
+- name: reload nginx
+  systemd:
+    name: nginx
+    state: reloaded
+  when: ansible_service_mgr == "systemd"
+  ignore_errors: yes

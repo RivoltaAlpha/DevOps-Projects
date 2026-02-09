@@ -1,0 +1,18 @@
+---
+# Main Ansible Playbook for Server Configuration
+- name: Configure Web Server
+  hosts: webservers
+  become: yes
+  
+  roles:
+    - role: base
+      tags: ['base', 'always']
+    
+    - role: ssh
+      tags: ['ssh', 'security']
+    
+    - role: nginx
+      tags: ['nginx', 'web']
+    
+    - role: app
+      tags: ['app', 'deploy']

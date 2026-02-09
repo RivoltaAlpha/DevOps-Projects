@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  ansible-server:
+    build: .
+    container_name: ansible-target
+    hostname: webserver
+    ports:
+      - "2222:22"  # Map container SSH to host port 2222
+      - "8080:80"  # Map container HTTP to host port 8080
+    networks:
+      - ansible-net
+    # Keep container running
+    stdin_open: true
+    tty: true
+
+networks:
+  ansible-net:
+    driver: bridge

@@ -1,0 +1,68 @@
+---
+# Base role - Basic server configuration
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Upgrade all packages
+  apt:
+    upgrade: dist
+    autoremove: yes
+    autoclean: yes
+
+- name: Install essential utilities
+  apt:
+    name:
+      - curl
+      - wget
+      - vim
+      - git
+      - htop
+      - unzip
+      - net-tools
+    state: present
+
+- name: Install fail2ban
+  apt:
+    name: fail2ban
+    state: present
+
+- name: Start and enable fail2ban service
+  systemd:
+    name: fail2ban
+    state: started
+    enabled: yes
+  when: ansible_service_mgr == "systemd"
+  ignore_errors: yes  # Systemd might not work in containers
+
+- name: Check if UTC timezone data exists
+  stat:
+    path: /usr/share/zoneinfo/UTC
+  register: timezone_utc
+
+- name: Set timezone to UTC
+  timezone:
+    name: UTC
+  when: timezone_utc.stat.exists
+  ignore_errors: yes  # Some minimal images do not ship zoneinfo
+
+- name: Configure fail2ban for SSH
+  copy:
+    dest: /etc/fail2ban/jail.local
+    content: |
+      [DEFAULT]
+      bantime = 3600
+      findtime = 600
+      maxretry = 5
+
+      [sshd]
+      enabled = true
+      port = ssh
+      logpath = /var/log/auth.log
+  notify: restart fail2ban
+  ignore_errors: yes
+
+- name: Display base configuration complete message
+  debug:
+    msg: "Base server configuration completed successfully!"

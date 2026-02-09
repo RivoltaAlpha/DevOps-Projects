@@ -1,0 +1,90 @@
+---
+# App role - Deploy static website
+- name: Ensure web root directory exists
+  file:
+    path: /var/www/html
+    state: directory
+    mode: '0755'
+
+- name: Remove default nginx page
+  file:
+    path: /var/www/html/index.nginx-debian.html
+    state: absent
+
+- name: Check if website tarball exists
+  stat:
+    path: files/website.tar.gz
+  delegate_to: localhost
+  register: tarball_exists
+
+- name: Upload and extract website tarball
+  unarchive:
+    src: files/website.tar.gz
+    dest: /var/www/html/
+    owner: www-data
+    group: www-data
+    mode: '0644'
+  when: tarball_exists.stat.exists
+
+- name: Create a simple index.html if tarball doesn't exist
+  copy:
+    dest: /var/www/html/index.html
+    content: |
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Ansible Deployed Site</title>
+          <style>
+              body {
+                  font-family: Arial, sans-serif;
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
+                  height: 100vh;
+                  margin: 0;
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  color: white;
+              }
+              .container {
+                  text-align: center;
+                  background: rgba(255, 255, 255, 0.1);
+                  padding: 3rem;
+                  border-radius: 10px;
+                  backdrop-filter: blur(10px);
+              }
+              h1 { font-size: 3rem; margin-bottom: 1rem; }
+              p { font-size: 1.2rem; }
+              .badge { 
+                  background: #4CAF50;
+                  padding: 0.5rem 1rem;
+                  border-radius: 20px;
+                  display: inline-block;
+                  margin-top: 1rem;
+              }
+          </style>
+      </head>
+      <body>
+          <div class="container">
+              <h1>🚀 Success!</h1>
+              <p>Your server has been configured with Ansible</p>
+              <div class="badge">✓ Deployed via Ansible</div>
+          </div>
+      </body>
+      </html>
+    owner: www-data
+    group: www-data
+    mode: '0644'
+  when: not tarball_exists.stat.exists
+
+- name: Set correct permissions for web directory
+  file:
+    path: /var/www/html
+    owner: www-data
+    group: www-data
+    recurse: yes
+
+- name: Display app deployment complete message
+  debug:
+    msg: "Application deployed successfully! Visit http://localhost:8080"

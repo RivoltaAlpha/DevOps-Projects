@@ -1,0 +1,7 @@
+---
+- name: restart fail2ban
+  systemd:
+    name: fail2ban
+    state: restarted
+  when: ansible_service_mgr == "systemd"
+  ignore_errors: yes

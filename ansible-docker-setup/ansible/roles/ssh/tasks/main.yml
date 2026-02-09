@@ -1,0 +1,53 @@
+---
+# SSH role - Configure SSH access
+- name: Ensure .ssh directory exists
+  file:
+    path: /root/.ssh
+    state: directory
+    mode: '0700'
+    owner: root
+    group: root
+
+- name: Check if public key file exists
+  stat:
+    path: files/public_key.pub
+  delegate_to: localhost
+  register: pubkey_exists
+
+- name: Add SSH public key to authorized_keys
+  authorized_key:
+    user: root
+    state: present
+    key: "{{ lookup('file', 'files/public_key.pub') }}"
+  when: pubkey_exists.stat.exists
+
+- name: Generate example SSH key pair if none exists
+  block:
+    - name: Display message about missing key
+      debug:
+        msg: "No public key found. Creating example key for demonstration."
+    
+    - name: Create example public key
+      copy:
+        dest: /root/.ssh/authorized_keys
+        content: "# Add your SSH public key here\n# Example: ssh-rsa AAAAB3Nza... user@hostname\n"
+        mode: '0600'
+        owner: root
+        group: root
+  when: not pubkey_exists.stat.exists
+
+- name: Configure SSH daemon for security
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  loop:
+    - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin prohibit-password' }
+    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication yes' }
+    - { regexp: '^#?PubkeyAuthentication', line: 'PubkeyAuthentication yes' }
+  notify: restart ssh
+
+- name: Display SSH configuration complete message
+  debug:
+    msg: "SSH configuration completed successfully!"
